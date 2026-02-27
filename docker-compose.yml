@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: rpg-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-rpgplatform}
+      POSTGRES_USER: ${POSTGRES_USER:-rpg}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-rpg} -d ${POSTGRES_DB:-rpgplatform}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rpg-net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rpg-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rpg}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-rpgplatform}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      PORT: ${PORT:-3000}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NODE_ENV: ${NODE_ENV:-production}
+    ports:
+      - '${PORT:-3000}:3000'
+    volumes:
+      - uploads:/app/public/uploads
+    networks:
+      - rpg-net
+
+volumes:
+  postgres_data:
+  uploads:
+
+networks:
+  rpg-net:
+    driver: bridge
